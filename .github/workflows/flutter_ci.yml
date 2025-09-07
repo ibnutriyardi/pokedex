@@ -1,0 +1,100 @@
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+
+name: Flutter CI & Coverage Badge # Suggested: More descriptive name
+
+on:
+  push:
+    branches: [ "master" ] # TODO: Change to "main" if that's your default branch
+  pull_request:
+    branches: [ "master" ] # TODO: Change to "main" if that's your default branch
+
+jobs:
+  build_test_and_update_badge: # Suggested: More descriptive job name
+    runs-on: ubuntu-latest
+    permissions: # <<< CRITICAL: Added this
+      contents: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        channel: 'stable' # Default: uses latest stable.
+        # To pin to a specific version (e.g., 3.1.3), uncomment the next line and comment out 'channel':
+        # flutter-version: '3.1.3'
+
+    - name: Install dependencies
+      run: flutter pub get
+
+    - name: Analyze project source
+      run: flutter analyze
+
+    - name: Run tests and generate coverage
+      run: flutter test --coverage
+
+    - name: Install lcov
+      # lcov is needed to parse the lcov.info file for the summary
+      run: sudo apt-get update && sudo apt-get install -y lcov
+
+    - name: Calculate line coverage percentage
+      id: coverage_percentage # Give this step an ID to access its output
+      run: |
+        # Use lcov to get a summary, then grep for the 'lines' percentage,
+        # then use sed to extract just the numerical percentage value (integer part).
+        COVERAGE_PERCENTAGE=$(lcov --summary coverage/lcov.info | grep "lines......" | sed 's/[^0-9.]*//g' | sed 's/\.[^.]*$//')
+        echo "LINE_COVERAGE=$COVERAGE_PERCENTAGE" >> $GITHUB_OUTPUT
+        echo "Calculated Line Coverage: $COVERAGE_PERCENTAGE%"
+
+    - name: Generate Coverage Badge URL
+      id: badge # Give this step an ID
+      run: |
+        PERCENTAGE=${{ steps.coverage_percentage.outputs.LINE_COVERAGE }}
+        # Determine badge color based on percentage
+        COLOR="red" # Default to red
+        if (( $(echo "$PERCENTAGE >= 90" | bc -l) )); then
+          COLOR="success"  # Green for >= 90%
+        elif (( $(echo "$PERCENTAGE >= 75" | bc -l) )); then
+          COLOR="yellow"   # Yellow for >= 75%
+        elif (( $(echo "$PERCENTAGE >= 50" | bc -l) )); then
+          COLOR="orange"   # Orange for >= 50%
+        fi
+        # Create the badge URL using Shields.io
+        # Linking the badge to your workflow run for more context
+        BADGE_URL="https://img.shields.io/badge/coverage-$PERCENTAGE%25-$COLOR.svg"
+        echo "BADGE_URL=$BADGE_URL" >> $GITHUB_OUTPUT
+        echo "Badge URL: $BADGE_URL"
+
+    - name: Update README.md with new badge
+      # This step uses awk to replace content between specified markers in README.md
+      run: |
+        BADGE_MARKDOWN="[![Coverage Badge](${{ steps.badge.outputs.BADGE_URL }})](https://github.com/${{ github.repository }}/actions/workflows/$(basename ${{ github.workflow_path }}))"
+        # awk script:
+        # 1. Print lines until COVERAGE_BADGE_START
+        # 2. When COVERAGE_BADGE_START is found, print it, then print the new badge markdown.
+        # 3. Set a flag 'skip' to ignore lines until COVERAGE_BADGE_END.
+        # 4. When COVERAGE_BADGE_END is found, print it and unset the 'skip' flag.
+        # 5. If 'skip' is not set, print the current line.
+        awk -v badge="$BADGE_MARKDOWN" '
+        BEGIN { skip=0 }
+        /<!-- COVERAGE_BADGE_START -->/ { print; print badge; skip=1; next }
+        /<!-- COVERAGE_BADGE_END -->/ { print; skip=0; next }
+        !skip { print }
+        ' README.md > README.md.tmp && mv README.md.tmp README.md
+        echo "README.md updated with new badge."
+
+    - name: Commit and push changes to README.md
+      # Only commit on push to the default branch (e.g., master or main)
+      # to avoid committing changes from PR checks.
+      if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
+      uses: stefanzweifel/git-auto-commit-action@v5
+      with:
+        commit_message: "Docs: Update code coverage badge"
+        file_pattern: README.md
+        # Optional: Specify committer name and email if default is not desired
+        # commit_user_name: GitHub Actions Bot
+        # commit_user_email: actions@github.com
