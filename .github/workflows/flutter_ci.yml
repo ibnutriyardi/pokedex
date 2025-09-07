@@ -69,12 +69,12 @@ jobs:
           echo "Badge URL: $BADGE_URL"
 
       - name: Update README.md with new badge
-        # This step uses awk to replace content between specified markers in README.md
-        run: |
-          # Correctly get the basename of the workflow file
-          WORKFLOW_FILE_NAME=$(basename "${{ github.workflow_path }}")
+        env: # <<< Corrected indentation
+          GH_WORKFLOW_PATH: ${{ github.workflow_path }}
+        run: | # <<< Corrected indentation
+          # Use the environment variable passed to the step
+          WORKFLOW_FILE_NAME=$(basename "$GH_WORKFLOW_PATH")
           
-          # Construct the badge markdown with the correct workflow file name
           BADGE_MARKDOWN="[![Coverage Badge](${{ steps.badge.outputs.BADGE_URL }})](https://github.com/${{ github.repository }}/actions/workflows/$WORKFLOW_FILE_NAME)"
           
           # awk script to update README.md
@@ -85,7 +85,7 @@ jobs:
           !skip { print }
           ' README.md > README.md.tmp && mv README.md.tmp README.md
           echo "README.md updated with new badge."
-
+      
       - name: Commit and push changes to README.md
         # Only commit on push to the default branch (e.g., master or main)
         # to avoid committing changes from PR checks.
