@@ -42,13 +42,28 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y lcov
 
       - name: Calculate line coverage percentage
-        id: coverage_percentage # Give this step an ID to access its output
+        id: coverage_percentage
         run: |
-          # Use lcov to get a summary, then grep for the 'lines' percentage,
-          # then use sed to extract just the numerical percentage value (integer part).
-          COVERAGE_PERCENTAGE=$(lcov --summary coverage/lcov.info | grep "lines......" | sed 's/[^0-9.]*//g' | sed 's/\.[^.]*$//')
+          # More robust way to extract the integer part of the line coverage percentage
+          COVERAGE_OUTPUT=$(lcov --summary coverage/lcov.info)
+          echo "LCOV Output for lines:"
+          echo "$COVERAGE_OUTPUT" | grep "lines......" # Print the line we are parsing
+          
+          # Extract percentage, then the integer part
+          # 1. Grep the line, 2. Use awk to get the field like "91.5%", 3. Use sed to remove non-digits before %, 4. Use sed to remove % and decimals
+          COVERAGE_PERCENTAGE_FLOAT=$(echo "$COVERAGE_OUTPUT" | grep "lines......" | awk -F '[ :%]+' '{print $3}')
+          echo "Extracted float percentage: $COVERAGE_PERCENTAGE_FLOAT"
+
+          COVERAGE_PERCENTAGE=$(echo "$COVERAGE_PERCENTAGE_FLOAT" | sed 's/\..*//')
+          echo "Extracted integer percentage: $COVERAGE_PERCENTAGE"
+
+          if [[ -z "$COVERAGE_PERCENTAGE" ]]; then
+            echo "Error: Could not parse coverage percentage. Setting to 0."
+            COVERAGE_PERCENTAGE=0
+          fi
+          
           echo "LINE_COVERAGE=$COVERAGE_PERCENTAGE" >> $GITHUB_OUTPUT
-          echo "Calculated Line Coverage: $COVERAGE_PERCENTAGE%"
+          echo "Final Calculated Line Coverage for badge: $COVERAGE_PERCENTAGE%"
 
       - name: Generate Coverage Badge URL
         id: badge # Give this step an ID
