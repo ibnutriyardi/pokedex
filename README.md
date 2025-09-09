@@ -1,7 +1,7 @@
 # Pokedex Flutter App
 
 <!-- COVERAGE_BADGE_START -->
-[![Coverage Badge](https://img.shields.io/badge/coverage-91%25-success.svg)](https://github.com/ibnutriyardi/pokedex/actions/workflows/)
+[![Coverage Badge](https://img.shields.io/badge/coverage-98%25-success.svg)](https://github.com/ibnutriyardi/pokedex/actions/workflows/)
 <!-- COVERAGE_BADGE_END -->
 
 A Flutter-based Pokedex application that allows users to browse and discover information about various Pokemon.
