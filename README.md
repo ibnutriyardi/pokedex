@@ -10,7 +10,7 @@ A Flutter-based Pokedex application that allows users to browse and discover inf
 
 Welcome to the Pokedex Flutter App! This application provides a seamless and engaging experience for Pokemon enthusiasts. Dive into a comprehensive database of Pokemon, view their stats, types, abilities, and more. Whether you're a seasoned Pokemon trainer or new to the Pokemon world, this app aims to be your go-to mobile Pokedex.
 
-## Features (Example - Customize this list!)
+## Features
 
 *   **Browse Pokemon List:** View a list of Pokemon with infinite scrolling.
 *   **Detailed Pokemon Info:** Tap on a Pokemon to see its detailed stats, types, abilities, height, weight, and evolution chain.
@@ -27,4 +27,5 @@ A few resources to get you started if this is your first Flutter project:
 
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
+
 samples, guidance on mobile development, and a full API reference.
