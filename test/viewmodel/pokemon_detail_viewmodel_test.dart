@@ -5,7 +5,7 @@ import 'package:mockito/mockito.dart';
 import 'package:pokedex/model/pokemon_detail.dart';
 import 'package:pokedex/model/pokemon_evolution.dart';
 import 'package:pokedex/model/pokemon_stats.dart';
-import 'package:pokedex/repository/pokemon_repository.dart'; // Added for the new test
+// Added for the new test
 import 'package:pokedex/viewmodel/pokemon_detail_viewmodel.dart';
 
 import 'pokemon_list_viewmodel_test.mocks.dart';
