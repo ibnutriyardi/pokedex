@@ -8,6 +8,58 @@ import '../model/pokemon.dart';
 import '../model/pokemon_detail.dart';
 import '../model/pokemon_evolution.dart';
 
+// --- Custom Exception Classes ---
+class NetworkException implements Exception {
+  final String message;
+  final int? statusCode;
+  final Uri? uri;
+
+  NetworkException(this.message, {this.statusCode, this.uri});
+
+  @override
+  String toString() {
+    String result = 'NetworkException: $message';
+    if (statusCode != null) {
+      result += ', StatusCode: $statusCode';
+    }
+    if (uri != null) {
+      result += ', URI: $uri';
+    }
+    return result;
+  }
+}
+
+class PokemonNotFoundException extends NetworkException {
+  PokemonNotFoundException(String message, {Uri? uri})
+      : super(message, statusCode: 404, uri: uri);
+
+  @override
+  String toString() {
+    String result = 'PokemonNotFoundException: $message';
+    if (uri != null) {
+      result += ', URI: $uri';
+    }
+    return result;
+  }
+}
+
+class DataParsingException implements Exception {
+  final String message;
+  final dynamic originalException; // Optional: to store the original error
+
+  DataParsingException(this.message, {this.originalException});
+
+  @override
+  String toString() {
+    String result = 'DataParsingException: $message';
+    if (originalException != null) {
+      result += '\nOriginal Exception: $originalException';
+    }
+    return result;
+  }
+}
+// --- End of Custom Exception Classes ---
+
 class PokemonRepository {
   final String baseUrl = "https://pokeapi.co/api/v2/";
   final http.Client _httpClient;
@@ -16,122 +68,183 @@ class PokemonRepository {
     : _httpClient = httpClient ?? http.Client();
 
   Future<PokemonList> fetchPokemons({int limit = 10, String? nextUrl}) async {
-    final uriString = nextUrl ?? "${baseUrl}pokemon?limit=$limit";
-    final response = await _httpClient.get(Uri.parse(uriString));
+    final uri = Uri.parse(nextUrl ?? "${baseUrl}pokemon?limit=$limit");
+    http.Response response;
+    try {
+      response = await _httpClient.get(uri);
+    } catch (e) {
+      throw NetworkException("Failed to execute request for Pokemons list: $e", uri: uri);
+    }
 
+    if (response.statusCode == 404) {
+      throw PokemonNotFoundException("Pokemons list not found", uri: uri);
+    }
     if (response.statusCode != 200) {
-      throw Exception(
-        "Failed to fetch Pokemons: ${response.statusCode}, URL: $uriString",
+      throw NetworkException(
+        "Failed to fetch Pokemons",
+        statusCode: response.statusCode,
+        uri: uri,
       );
     }
 
-    final data = jsonDecode(response.body);
-    final int count = data['count'] as int;
-    final String? next = data['next'] as String?;
-    final List results = data['results'] as List;
+    try {
+      final data = jsonDecode(response.body);
+      final int count = data['count'] as int;
+      final String? next = data['next'] as String?;
+      final List results = data['results'] as List;
 
-    final futures = results.map((item) async {
-      if (item == null || item['url'] == null) {
+      final futures = results.map((item) async {
+        if (item == null || item['url'] == null) {
+          debugPrint(
+            "Warning: Item or item URL is null in fetchPokemons results.",
+          );
+          return null;
+        }
+        final detailUrl = item['url'] as String;
+        http.Response detailResponse;
+        try {
+            detailResponse = await _httpClient.get(Uri.parse(detailUrl));
+        } catch (e) {
+            debugPrint("Failed to fetch detail for ${item['name']}: $e, URL: $detailUrl");
+            return null; // Or throw a specific error if partial failure should stop everything
+        }
+
+        if (detailResponse.statusCode == 200) {
+          final detailData = jsonDecode(detailResponse.body);
+          return Pokemon.fromJson(detailData);
+        }
         debugPrint(
-          "Warning: Item or item URL is null in fetchPokemons results.",
+          "Failed to fetch detail for ${item['name']}: ${detailResponse.statusCode}, URL: $detailUrl",
         );
         return null;
-      }
-      final detailUrl = item['url'] as String;
-      final detailResponse = await _httpClient.get(Uri.parse(detailUrl));
+      }).toList();
 
-      if (detailResponse.statusCode == 200) {
-        final detailData = jsonDecode(detailResponse.body);
-        return Pokemon.fromJson(detailData);
-      }
-      debugPrint(
-        "Failed to fetch detail for ${item['name']}: ${detailResponse.statusCode}, URL: $detailUrl",
-      );
-      return null;
-    }).toList();
-
-    final pokemons = (await Future.wait(futures)).whereType<Pokemon>().toList();
-
-    return PokemonList(count: count, next: next, results: pokemons);
+      final pokemons = (await Future.wait(futures)).whereType<Pokemon>().toList();
+      return PokemonList(count: count, next: next, results: pokemons);
+    } catch (e) {
+      throw DataParsingException("Error parsing Pokemons list data: $e", originalException: e);
+    }
   }
 
   Future<PokemonDetail> fetchPokemonDetails(int pokemonId) async {
-    final pokemonUriString = "${baseUrl}pokemon/$pokemonId";
-    final pokemonResponse = await _httpClient.get(Uri.parse(pokemonUriString));
+    final pokemonUri = Uri.parse("${baseUrl}pokemon/$pokemonId");
+    final speciesUri = Uri.parse("${baseUrl}pokemon-species/$pokemonId");
 
+    List<http.Response> responses;
+    try {
+      responses = await Future.wait([
+        _httpClient.get(pokemonUri),
+        _httpClient.get(speciesUri),
+      ]);
+    } catch (e) {
+      throw NetworkException("Failed to execute requests for Pokemon details and species data: $e");
+    }
+
+    final pokemonResponse = responses[0];
+    final speciesResponse = responses[1];
+
+    if (pokemonResponse.statusCode == 404) {
+      throw PokemonNotFoundException("Pokemon with ID $pokemonId not found", uri: pokemonUri);
+    }
     if (pokemonResponse.statusCode != 200) {
-      throw Exception(
-        "Failed to load Pokemon data: ${pokemonResponse.statusCode}, URL: $pokemonUriString",
+      throw NetworkException(
+        "Failed to load Pokemon data",
+        statusCode: pokemonResponse.statusCode,
+        uri: pokemonUri,
       );
     }
-    final pokemonData = jsonDecode(pokemonResponse.body);
+    
+    dynamic pokemonData;
+    try {
+        pokemonData = jsonDecode(pokemonResponse.body);
+    } catch (e) {
+        throw DataParsingException("Error parsing Pokemon data for ID $pokemonId: $e", originalException: e);
+    }
 
     String description = "No description available.";
     String? evolutionChainUrl;
 
-    final speciesUriString = "${baseUrl}pokemon-species/$pokemonId";
-    final speciesResponse = await _httpClient.get(Uri.parse(speciesUriString));
-
     if (speciesResponse.statusCode == 200) {
-      final speciesData = jsonDecode(speciesResponse.body);
-
-      final flavorTextEntries = speciesData['flavor_text_entries'] as List?;
-      if (flavorTextEntries != null) {
-        for (var entry in flavorTextEntries) {
-          if (entry is Map &&
-              entry['language'] is Map &&
-              entry['language']['name'] == 'en') {
-            if (entry['flavor_text'] is String) {
-              description = entry['flavor_text']
-                  .toString()
-                  .replaceAll('\n', ' ')
-                  .replaceAll('\f', ' ');
-              break;
+      try {
+        final speciesData = jsonDecode(speciesResponse.body);
+        final flavorTextEntries = speciesData['flavor_text_entries'] as List?;
+        if (flavorTextEntries != null) {
+          for (var entry in flavorTextEntries) {
+            if (entry is Map &&
+                entry['language'] is Map &&
+                entry['language']['name'] == 'en') {
+              if (entry['flavor_text'] is String) {
+                description = entry['flavor_text']
+                    .toString()
+                    .replaceAll('\n', ' ')
+                    .replaceAll('\f', ' ');
+                break;
+              }
             }
           }
         }
-      }
-
-      final evolutionChainData = speciesData['evolution_chain'];
-      if (evolutionChainData is Map && evolutionChainData['url'] is String) {
-        evolutionChainUrl = evolutionChainData['url'] as String?;
+        final evolutionChainData = speciesData['evolution_chain'];
+        if (evolutionChainData is Map && evolutionChainData['url'] is String) {
+          evolutionChainUrl = evolutionChainData['url'] as String?;
+        }
+      } catch (e) {
+        debugPrint("Error parsing species data for ID $pokemonId: $e. Using default values.");
+        // Not throwing DataParsingException here to allow partial data if main pokemon data is fine.
       }
     } else {
       debugPrint(
-        "Failed to load species data for description/evolution: ${speciesResponse.statusCode}, URL: $speciesUriString",
+        "Failed to load species data for ID $pokemonId: ${speciesResponse.statusCode}, URL: $speciesUri. Using default description/evolution.",
       );
+      // Not throwing NetworkException for species data to allow partial success.
     }
 
-    return PokemonDetail.fromJson(
-      pokemonData,
-      description: description,
-      evolutionChainUrl: evolutionChainUrl,
-    );
+    try {
+      return PokemonDetail.fromJson(
+        pokemonData,
+        description: description,
+        evolutionChainUrl: evolutionChainUrl,
+      );
+    } catch (e) {
+      throw DataParsingException("Error creating PokemonDetail object for ID $pokemonId: $e", originalException: e);
+    }
   }
 
   Future<PokemonEvolution> fetchPokemonEvolution(
-    String evolutionChainUrl,
+    String evolutionChainUrlString,
   ) async {
-    if (evolutionChainUrl.isEmpty) {
-      throw Exception("Evolution chain URL is empty.");
+    if (evolutionChainUrlString.isEmpty) {
+      // Or throw ArgumentError perhaps
+      throw DataParsingException("Evolution chain URL is empty."); 
+    }
+    final uri = Uri.parse(evolutionChainUrlString);
+    http.Response evolutionResponse;
+    try {
+        evolutionResponse = await _httpClient.get(uri);
+    } catch (e) {
+        throw NetworkException("Failed to execute request for evolution chain: $e", uri: uri);
     }
 
-    final evolutionResponse = await _httpClient.get(
-      Uri.parse(evolutionChainUrl),
-    );
-
+    if (evolutionResponse.statusCode == 404) {
+      throw PokemonNotFoundException("Evolution chain not found", uri: uri);
+    }
     if (evolutionResponse.statusCode != 200) {
-      throw Exception(
-        "Failed to load evolution chain data: ${evolutionResponse.statusCode}, URL: $evolutionChainUrl",
+      throw NetworkException(
+        "Failed to load evolution chain data",
+        statusCode: evolutionResponse.statusCode,
+        uri: uri,
       );
     }
 
-    final evolutionData = jsonDecode(evolutionResponse.body);
-    if (evolutionData['chain'] == null) {
-      throw Exception(
-        "Invalid evolution chain data format from URL: $evolutionChainUrl",
-      );
+    try {
+      final evolutionData = jsonDecode(evolutionResponse.body);
+      if (evolutionData['chain'] == null) {
+        throw DataParsingException(
+          "Invalid evolution chain data format from URL: $uri",
+        );
+      }
+      return PokemonEvolution.fromJson(evolutionData['chain']);
+    } catch (e) {
+      throw DataParsingException("Error parsing evolution chain data from URL $uri: $e", originalException: e);
     }
-    return PokemonEvolution.fromJson(evolutionData['chain']);
   }
 }
