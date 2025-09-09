@@ -5,30 +5,50 @@ import 'package:flutter/material.dart';
 import '../model/pokemon.dart';
 import '../model/pokemon_list.dart';
 import '../repository/pokemon_repository.dart';
+import '../utils/color_utils.dart'; // New import
 
+/// {@template pokemon_list_viewmodel}
+/// ViewModel for managing the state and business logic of the Pokémon list screen.
+///
+/// It handles fetching the initial list of Pokémon, loading more Pokémon for
+/// infinite scrolling, and managing loading and error states.
+/// It also provides utility methods for UI display, such as formatting Pokémon IDs.
+/// {@endtemplate}
 class PokemonListViewModel extends ChangeNotifier {
   final PokemonRepository _repository;
 
   PokemonList? _pokemonList;
 
+  /// The raw [PokemonList] object containing pagination details and results.
+  /// Can be null if no data has been fetched yet.
   PokemonList? get pokemonList => _pokemonList;
 
   List<Pokemon> _pokemons = [];
 
+  /// The current list of [Pokemon] objects to be displayed.
   List<Pokemon> get pokemons => _pokemons;
 
   bool _isLoading = false;
 
+  /// Indicates whether the ViewModel is currently fetching data.
   bool get isLoading => _isLoading;
 
   String? _error;
 
+  /// Holds an error message string if a fetch operation failed, otherwise null.
   String? get error => _error;
 
   bool _isDisposed = false;
 
+  /// Indicates whether there are more Pokémon to fetch (i.e., if `_pokemonList.next` is not null).
   bool get hasMore => _pokemonList?.next != null;
 
+  /// {@macro pokemon_list_viewmodel}
+  ///
+  /// An optional [repository] can be provided for dependency injection, primarily
+  /// for testing. If not supplied, a default [PokemonRepository] instance is created.
+  ///
+  /// Automatically triggers [fetchInitialPokemons] upon initialization.
   PokemonListViewModel({PokemonRepository? repository})
     : _repository = repository ?? PokemonRepository() {
     Future.microtask(() => fetchInitialPokemons());
@@ -40,12 +60,19 @@ class PokemonListViewModel extends ChangeNotifier {
     super.dispose();
   }
 
+  /// Notifies listeners only if the ViewModel has not been disposed.
+  /// This prevents errors if state changes occur after disposal.
   void _safeNotifyListeners() {
     if (!_isDisposed) {
       notifyListeners();
     }
   }
 
+  /// Fetches the initial list of Pokémon.
+  ///
+  /// Sets [isLoading] to true and clears any previous [error].
+  /// Upon completion, updates [_pokemons] with the fetched results or sets
+  /// [_error] if an exception occurs. Finally, sets [isLoading] to false.
   Future<void> fetchInitialPokemons() async {
     _isLoading = true;
     _error = null;
@@ -62,6 +89,11 @@ class PokemonListViewModel extends ChangeNotifier {
     }
   }
 
+  /// Fetches the next page of Pokémon if [hasMore] is true and not already loading.
+  ///
+  /// Sets [isLoading] to true. If successful, appends the new Pokémon to the
+  /// existing [_pokemons] list. Sets [_error] if an exception occurs during fetching.
+  /// Finally, sets [isLoading] to false.
   Future<void> fetchMorePokemons() async {
     if (_isLoading || !hasMore || _isDisposed) return;
 
@@ -85,50 +117,10 @@ class PokemonListViewModel extends ChangeNotifier {
     }
   }
 
-  Color getPokemonTypeColor(String? type) {
-    if (type == null) return Colors.grey.shade400;
-    switch (type.toLowerCase()) {
-      case 'grass':
-        return const Color(0xFF78C850);
-      case 'fire':
-        return const Color(0xFFF08030);
-      case 'water':
-        return const Color(0xFF6890F0);
-      case 'bug':
-        return const Color(0xFFA8B820);
-      case 'normal':
-        return const Color(0xFFA8A878);
-      case 'poison':
-        return const Color(0xFFA040A0);
-      case 'electric':
-        return const Color(0xFFF8D030);
-      case 'ground':
-        return const Color(0xFFE0C068);
-      case 'fairy':
-        return const Color(0xFFEE99AC);
-      case 'fighting':
-        return const Color(0xFFC03028);
-      case 'psychic':
-        return const Color(0xFFF85888);
-      case 'rock':
-        return const Color(0xFFB8A038);
-      case 'ghost':
-        return const Color(0xFF705898);
-      case 'ice':
-        return const Color(0xFF98D8D8);
-      case 'dragon':
-        return const Color(0xFF7038F8);
-      case 'dark':
-        return const Color(0xFF705848);
-      case 'steel':
-        return const Color(0xFFB8B8D0);
-      case 'flying': // Added missing case
-        return const Color(0xFFA890F0);
-      default:
-        return Colors.grey.shade400;
-    }
-  }
-
+  /// Formats a Pokémon ID into a string with a leading '#' and padded with zeros
+  /// to three digits (e.g., 1 becomes "#001").
+  ///
+  /// [id] The Pokémon ID to format.
   String formatPokemonId(int id) {
     return "#${id.toString().padLeft(3, '0')}";
   }

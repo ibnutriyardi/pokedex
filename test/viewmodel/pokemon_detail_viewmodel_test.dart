@@ -4,21 +4,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:pokedex/model/pokemon_detail.dart';
 import 'package:pokedex/model/pokemon_evolution.dart';
+import 'package:pokedex/model/pokemon_stats.dart';
+import 'package:pokedex/model/general_response.dart';
 import 'package:pokedex/viewmodel/pokemon_detail_viewmodel.dart';
 
 import 'pokemon_list_viewmodel_test.mocks.dart';
 
-// Globals for notification tracking
 Completer<void>? _activeCompleter;
 int _notificationTargetCount = 0;
 int _notificationsReceivedForActiveCompleter = 0;
-List<String> notifiedEvents = []; // Keep a global list for inspection
+List<String> notifiedEvents = [];
 
 void main() {
   late PokemonDetailViewModel viewModel;
   late MockPokemonRepository mockRepository;
 
-  // Helper to make event strings more descriptive
   String describeNotificationState(PokemonDetailViewModel vm) {
     return 'L:${vm.isLoading} EL:${vm.isEvolutionLoading} Err:${vm.error != null} EvoErr:${vm.evolutionError != null}';
   }
@@ -27,10 +27,8 @@ void main() {
     mockRepository = MockPokemonRepository();
     viewModel = PokemonDetailViewModel(repository: mockRepository);
     
-    // Clear global list for each test, specific event lists can be managed per test
     notifiedEvents.clear(); 
 
-    // Listener setup
     viewModel.addListener(() {
       notifiedEvents.add(describeNotificationState(viewModel));
       if (_activeCompleter != null && !_activeCompleter!.isCompleted) {
@@ -45,7 +43,7 @@ void main() {
   Future<void> awaitNotifications(
     Completer<void> completer,
     int targetCount, {
-    Duration timeoutDuration = const Duration(seconds: 3), // Increased default timeout
+    Duration timeoutDuration = const Duration(seconds: 3),
   }) async {
     _activeCompleter = completer;
     _notificationTargetCount = targetCount;
@@ -55,8 +53,6 @@ void main() {
     } catch (e) {
       debugPrint(
           'Notification completer timed out. Expected $targetCount, received $_notificationsReceivedForActiveCompleter. Total Events: ${notifiedEvents.length} -> ${notifiedEvents.isNotEmpty ? notifiedEvents.last : "[]"}');
-      // Rethrow to ensure test fails on timeout
-      // throw TestFailure('Notification completer timed out. Expected $targetCount, received $_notificationsReceivedForActiveCompleter.');
     }
   }
 
@@ -70,7 +66,7 @@ void main() {
     List<String> abilities = const [],
     double height = 1.0,
     double weight = 10.0,
-    List<Stat> stats = const [],
+    List<PokemonStats> stats = const <PokemonStats>[],
     List<PokemonMove> moves = const <PokemonMove>[],
     int baseExperience = 64,
   }) {
@@ -107,11 +103,6 @@ void main() {
         id: pokemonId, name: 'pikachu', evolutionChainUrl: dummyEvolutionChainUrl);
     final dummyEvolution = createDummyPokemonEvolution(speciesName: 'pikachu');
 
-    // Expected notifications:
-    // 1. isLoading=true (main fetch starts)
-    // 2. isEvolutionLoading=true (evo fetch starts)
-    // 3. isEvolutionLoading=false (evo fetch ends)
-    // 4. isLoading=false (main fetch ends)
     const int successNotificationsCount = 4;
 
     test('success: fetches details and evolution', () async {
@@ -138,9 +129,6 @@ void main() {
       expect(notifiedEvents.length, successNotificationsCount, reason: "Should have exactly $successNotificationsCount notifications for success case");
     });
     
-    // Expected notifications:
-    // 1. isLoading=true (main fetch starts)
-    // 2. isLoading=false (main fetch ends in finally after error)
     const int detailFetchErrorNotificationsCount = 2;
 
     test('failure: getPokemonDetails throws exception', () async {
@@ -165,11 +153,6 @@ void main() {
       expect(notifiedEvents.length, detailFetchErrorNotificationsCount, reason: "Should have $detailFetchErrorNotificationsCount notifications for detail fetch error");
     });
 
-    // Expected notifications:
-    // 1. isLoading=true (main fetch starts)
-    // 2. isEvolutionLoading=true (evo fetch starts)
-    // 3. isEvolutionLoading=false (evo fetch ends after error)
-    // 4. isLoading=false (main fetch ends)
     const int evolutionFetchErrorNotificationsCount = 4;
 
     test('failure: fetchPokemonEvolution throws exception', () async {
@@ -251,7 +234,7 @@ void main() {
       when(mockRepository.fetchPokemonEvolution(firstEvoUrl)).thenAnswer((_) async => firstEvolution);
       
       viewModel.fetchPokemonDetails(firstId);
-      await awaitNotifications(firstFetchCompleter, 4); // Use 4 directly as successNotificationsCount is out of scope
+      await awaitNotifications(firstFetchCompleter, 4);
 
       expect(viewModel.pokemonDetail, firstDetail);
       expect(viewModel.pokemonEvolution, firstEvolution);
@@ -303,7 +286,7 @@ void main() {
           .thenAnswer((_) async => initialEvolution);
       
       viewModel.fetchPokemonDetails(pokemonId);
-      await awaitNotifications(completer, 4); // Use 4 directly, as successNotificationsCount is out of scope here
+      await awaitNotifications(completer, 4); 
       notifiedEvents.clear(); 
     }
 
@@ -381,36 +364,6 @@ void main() {
       expect(viewModel.pokemonEvolution, initialEvolution, reason: "Should retain old evolution data on refresh error"); 
       verify(mockRepository.fetchPokemonEvolution(initialEvoUrl)).called(2); 
       expect(notifiedEvents.length, refreshFailNotificationsCount);
-    });
-  });
-
-  group('Utility Methods', () {
-    test('getPokemonTypeColor returns correct color for all known types and defaults', () {
-      expect(viewModel.getPokemonTypeColor('grass'), const Color(0xFF78C850));
-      expect(viewModel.getPokemonTypeColor('fire'), const Color(0xFFF08030));
-      expect(viewModel.getPokemonTypeColor('water'), const Color(0xFF6890F0));
-      expect(viewModel.getPokemonTypeColor('bug'), const Color(0xFFA8B820));
-      expect(viewModel.getPokemonTypeColor('normal'), const Color(0xFFA8A878));
-      expect(viewModel.getPokemonTypeColor('poison'), const Color(0xFFA040A0));
-      expect(viewModel.getPokemonTypeColor('electric'), const Color(0xFFF8D030));
-      expect(viewModel.getPokemonTypeColor('ground'), const Color(0xFFE0C068));
-      expect(viewModel.getPokemonTypeColor('fairy'), const Color(0xFFEE99AC));
-      expect(viewModel.getPokemonTypeColor('fighting'), const Color(0xFFC03028));
-      expect(viewModel.getPokemonTypeColor('psychic'), const Color(0xFFF85888));
-      expect(viewModel.getPokemonTypeColor('rock'), const Color(0xFFB8A038));
-      expect(viewModel.getPokemonTypeColor('ghost'), const Color(0xFF705898));
-      expect(viewModel.getPokemonTypeColor('ice'), const Color(0xFF98D8D8));
-      expect(viewModel.getPokemonTypeColor('dragon'), const Color(0xFF7038F8));
-      expect(viewModel.getPokemonTypeColor('dark'), const Color(0xFF705848));
-      expect(viewModel.getPokemonTypeColor('steel'), const Color(0xFFB8B8D0));
-      expect(viewModel.getPokemonTypeColor('flying'), const Color(0xFFA890F0));
-
-      expect(viewModel.getPokemonTypeColor('Grass'), const Color(0xFF78C850)); 
-      expect(viewModel.getPokemonTypeColor('FiRe'), const Color(0xFFF08030)); 
-
-      expect(viewModel.getPokemonTypeColor(null), Colors.grey.shade400);
-      expect(viewModel.getPokemonTypeColor('unknown_type'), Colors.grey.shade400);
-      expect(viewModel.getPokemonTypeColor(''), Colors.grey.shade400);
     });
   });
 }

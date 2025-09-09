@@ -5,14 +5,35 @@ import 'package:pokedex/utils/app_ui_constants.dart';
 import '../../utils/app_strings.dart';
 import 'pokemon_type_capsule.dart';
 
+/// A widget that displays a Pokémon's basic information in a card format.
+///
+/// This card typically shows the Pokémon's name, ID, types, and an image.
+/// It uses a background color derived from the Pokémon's primary type and
+/// includes a decorative Pokeball image.
+/// The card can be tapped to trigger an action, like navigating to a detail screen.
 class PokemonCard extends StatelessWidget {
+  /// The name of the Pokémon (e.g., "Bulbasaur").
   final String name;
+
+  /// The formatted ID of the Pokémon (e.g., "#001").
   final String id;
+
+  /// A list of type names for the Pokémon (e.g., ["grass", "poison"]).
+  /// Only the first two types are typically displayed.
   final List<String> types;
+
+  /// The URL for the Pokémon's image.
   final String imageUrl;
+
+  /// The background color for the card, usually derived from the Pokémon's type.
   final Color color;
+
+  /// An optional callback function to be executed when the card is tapped.
   final VoidCallback? onTap;
 
+  /// Creates a [PokemonCard] widget.
+  ///
+  /// All parameters except [key] and [onTap] are required.
   const PokemonCard({
     super.key,
     required this.name,

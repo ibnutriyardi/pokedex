@@ -3,11 +3,18 @@ import 'package:provider/provider.dart';
 
 import '../utils/app_strings.dart';
 import '../utils/app_ui_constants.dart';
+import '../utils/color_utils.dart';
 import '../viewmodel/pokemon_list_viewmodel.dart';
-import 'pokemon_details_screen.dart'; // New import added
+import 'pokemon_details_screen.dart'; 
 import 'widget/pokemon_card.dart';
 
+/// The main screen of the Pokedex application, displaying a scrollable list of Pokémon.
+///
+/// This screen fetches Pokémon data using [PokemonListViewModel] and displays
+/// each Pokémon in a [PokemonCard]. It supports infinite scrolling to load more
+/// Pokémon as the user scrolls down, and includes a pull-to-refresh feature.
 class PokemonListScreen extends StatefulWidget {
+  /// Creates a [PokemonListScreen].
   const PokemonListScreen({super.key});
 
   @override
@@ -101,10 +108,7 @@ class _PokemonListScreenState extends State<PokemonListScreen> {
       );
     }
 
-    // Fixed 2-column layout
     const int crossAxisCount = 2;
-    // Keep aspect ratio fixed for now, as per the simplification to 2 columns.
-    // If cards are too wide/short on tablets, we can make this dynamic later.
     const double childAspectRatio = 1.4;
 
     return RefreshIndicator(
@@ -128,8 +132,8 @@ class _PokemonListScreenState extends State<PokemonListScreen> {
                   id: viewModel.formatPokemonId(pokemon.id),
                   types: pokemon.types.map((t) => t.toUpperCase()).toList(),
                   imageUrl: pokemon.imageUrl,
-                  color: viewModel.getPokemonTypeColor(
-                    pokemon.types.isNotEmpty ? pokemon.types.first : null,
+                  color: getPokemonTypeColor( 
+                      pokemon.types.isNotEmpty ? pokemon.types.first : null,
                   ),
                   onTap: () {
                     Navigator.push(
@@ -137,7 +141,7 @@ class _PokemonListScreenState extends State<PokemonListScreen> {
                       MaterialPageRoute(
                         builder: (context) => PokemonDetailsScreenWrapper(
                           pokemonId: pokemon.id,
-                        ), // Changed to new screen
+                        ), 
                       ),
                     );
                   },

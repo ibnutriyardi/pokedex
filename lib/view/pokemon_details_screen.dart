@@ -1,5 +1,3 @@
-// Added for clamp
-
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:pokedex/viewmodel/pokemon_detail_viewmodel.dart';
@@ -9,12 +7,20 @@ import '../model/pokemon_detail.dart';
 import '../model/pokemon_evolution.dart';
 import '../utils/app_strings.dart';
 import '../utils/app_ui_constants.dart';
+import '../utils/color_utils.dart';
 import 'widget/pokemon_type_capsule.dart';
 
-// Wrapper to provide the ViewModel
+/// A wrapper widget for [PokemonDetailsScreen] that provides the [PokemonDetailViewModel].
+///
+/// This widget is responsible for creating and providing the [PokemonDetailViewModel]
+/// to the [_PokemonDetailsScreen] widget tree, initiating the fetch for Pokémon details.
 class PokemonDetailsScreenWrapper extends StatelessWidget {
+  /// The ID of the Pokémon to display details for.
   final int pokemonId;
 
+  /// Creates a [PokemonDetailsScreenWrapper].
+  ///
+  /// Requires the [pokemonId] of the Pokémon whose details are to be displayed.
   const PokemonDetailsScreenWrapper({super.key, required this.pokemonId});
 
   @override
@@ -26,9 +32,17 @@ class PokemonDetailsScreenWrapper extends StatelessWidget {
   }
 }
 
+/// The main stateful widget for displaying the details of a specific Pokémon.
+///
+/// It receives a [pokemonId] and uses a [PokemonDetailViewModel] (provided by
+/// [PokemonDetailsScreenWrapper]) to fetch and display Pokémon data across various tabs.
 class _PokemonDetailsScreen extends StatefulWidget {
+  /// The ID of the Pokémon to display details for.
   final int pokemonId;
 
+  /// Creates a [_PokemonDetailsScreen].
+  ///
+  /// Requires the [pokemonId].
   const _PokemonDetailsScreen({required this.pokemonId});
 
   @override
@@ -39,6 +53,7 @@ class _PokemonDetailsScreenState extends State<_PokemonDetailsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
+  // Default values used as fallbacks if AppUIConstants are not set (e.g., 0.0)
   static const double _defaultScreenPadding = 16.0;
   static const double _defaultXSmallPadding = 8.0;
   static const double _defaultSmallPadding = 8.0;
@@ -59,6 +74,7 @@ class _PokemonDetailsScreenState extends State<_PokemonDetailsScreen>
     super.dispose();
   }
 
+  /// Builds the decorative Pokeball background image.
   Widget _buildPokeballBackground(
     Color pokemonTypeColor,
     bool isLandscape,
@@ -91,6 +107,7 @@ class _PokemonDetailsScreenState extends State<_PokemonDetailsScreen>
     );
   }
 
+  /// Builds the row displaying the Pokémon's name and formatted ID.
   Widget _buildPokemonNameAndIdRow(PokemonDetail pokemon) {
     TextStyle nameStyle = TextStyle(
       fontSize: AppUIConstants.pokemonNameFontSize,
@@ -130,6 +147,7 @@ class _PokemonDetailsScreenState extends State<_PokemonDetailsScreen>
     );
   }
 
+  /// Builds the row displaying Pokémon type capsules.
   Widget _buildTypeCapsulesRow(PokemonDetail pokemon, Color pokemonTypeColor) {
     if (pokemon.types.isEmpty) return const SizedBox.shrink();
     return Padding(
@@ -167,6 +185,7 @@ class _PokemonDetailsScreenState extends State<_PokemonDetailsScreen>
     );
   }
 
+  /// Builds the main Pokémon image with a Hero animation.
   Widget _buildPokemonImage(PokemonDetail pokemon, double imageSize) {
     return Hero(
       tag: 'pokemon-image-${pokemon.id}',
@@ -191,6 +210,7 @@ class _PokemonDetailsScreenState extends State<_PokemonDetailsScreen>
     );
   }
 
+  /// Builds the tab system (TabBar and TabBarView) for different Pokémon details sections.
   Widget _buildTabSystem(
     BuildContext context,
     PokemonDetail pokemon,
@@ -270,6 +290,7 @@ class _PokemonDetailsScreenState extends State<_PokemonDetailsScreen>
     );
   }
 
+  /// Builds the UI layout for portrait orientation.
   Widget _buildPortraitLayout(
     BuildContext context,
     PokemonDetail pokemon,
@@ -351,6 +372,7 @@ class _PokemonDetailsScreenState extends State<_PokemonDetailsScreen>
     );
   }
 
+  /// Builds the UI layout for landscape orientation.
   Widget _buildLandscapeLayout(
     BuildContext context,
     PokemonDetail pokemon,
@@ -435,6 +457,10 @@ class _PokemonDetailsScreenState extends State<_PokemonDetailsScreen>
     );
   }
 
+  /// Builds the main widget tree for the screen.
+  ///
+  /// Handles loading, error, and data states, and delegates to orientation-specific
+  /// layout builders ([_buildPortraitLayout] or [_buildLandscapeLayout]).
   @override
   Widget build(BuildContext context) {
     final viewModel = context.watch<PokemonDetailViewModel>();
@@ -465,7 +491,7 @@ class _PokemonDetailsScreenState extends State<_PokemonDetailsScreen>
       );
     }
 
-    Color pokemonTypeColor = viewModel.getPokemonTypeColor(
+    Color pokemonTypeColor = getPokemonTypeColor(
       pokemon.types.firstOrNull,
     );
 
@@ -481,7 +507,7 @@ class _PokemonDetailsScreenState extends State<_PokemonDetailsScreen>
         ),
       ),
       body: OrientationBuilder(
-        // Changed to OrientationBuilder
+        
         builder: (context, orientation) {
           if (orientation == Orientation.portrait) {
             return _buildPortraitLayout(context, pokemon, pokemonTypeColor);
@@ -493,6 +519,7 @@ class _PokemonDetailsScreenState extends State<_PokemonDetailsScreen>
     );
   }
 
+  /// Builds the content for the 'About' tab.
   Widget _buildAboutTab(
     BuildContext context,
     PokemonDetail pokemon,
@@ -538,6 +565,7 @@ class _PokemonDetailsScreenState extends State<_PokemonDetailsScreen>
     );
   }
 
+  /// Converts a height in meters to a string representation in feet and inches.
   String _toFeetInches(double meters) {
     double totalInches = meters * AppUIConstants.metersToTotalInches;
     int feet = (totalInches / AppUIConstants.inchesPerFoot).floor();
@@ -545,6 +573,7 @@ class _PokemonDetailsScreenState extends State<_PokemonDetailsScreen>
     return "$feet' $inches\"";
   }
 
+  /// Builds a row for displaying a piece of information (label and value).
   Widget _buildInfoRow(String label, String value) {
     return Padding(
       padding: EdgeInsets.symmetric(
@@ -586,6 +615,7 @@ class _PokemonDetailsScreenState extends State<_PokemonDetailsScreen>
     );
   }
 
+  /// Builds the content for the 'Base Stats' tab.
   Widget _buildBaseStatsTab(
     BuildContext context,
     PokemonDetail pokemon,
@@ -623,7 +653,7 @@ class _PokemonDetailsScreenState extends State<_PokemonDetailsScreen>
         children: [
           ...pokemon.stats.map(
             (stat) => _buildStatRow(
-              stat.capitalizedName,
+              stat.capitalizedStatName,
               stat.baseStat,
               primaryColor,
               maxValue: maxStatValue,
@@ -673,6 +703,7 @@ class _PokemonDetailsScreenState extends State<_PokemonDetailsScreen>
     );
   }
 
+  /// Builds a row displaying a single statistic with a progress bar.
   Widget _buildStatRow(
     String name,
     int value,
@@ -741,6 +772,7 @@ class _PokemonDetailsScreenState extends State<_PokemonDetailsScreen>
     );
   }
 
+  /// Builds the content for the 'Evolution' tab, displaying the Pokémon's evolution chain.
   Widget _buildEvolutionTab(
     BuildContext context,
     PokemonDetail pokemon,
@@ -769,6 +801,7 @@ class _PokemonDetailsScreenState extends State<_PokemonDetailsScreen>
       );
     }
 
+    /// Recursively builds the list of widgets for the evolution chain display.
     List<Widget> buildEvolutionWidgets(
       PokemonEvolution currentStage,
       int depth,
@@ -789,11 +822,14 @@ class _PokemonDetailsScreenState extends State<_PokemonDetailsScreen>
                 ? AppUIConstants.smallPadding
                 : _defaultSmallPadding),
           ),
-          child: Text(
-            currentStage.capitalizedSpeciesName,
-            style: TextStyle(
-              fontSize: AppUIConstants.fontSizeXLarge,
-              fontWeight: FontWeight.w500,
+          child: Center(
+            child: Text(
+              currentStage.capitalizedSpeciesName,
+              style: TextStyle(
+                fontSize: AppUIConstants.fontSizeXLarge,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
             ),
           ),
         ),
@@ -806,15 +842,14 @@ class _PokemonDetailsScreenState extends State<_PokemonDetailsScreen>
                   depth *
                       (AppUIConstants.largePadding > 0
                           ? AppUIConstants.largePadding
-                          : _defaultLargePadding) +
-                  (AppUIConstants.mediumPadding > 0
-                      ? AppUIConstants.mediumPadding
-                      : _defaultMediumPadding),
+                          : _defaultLargePadding),
             ),
-            child: Icon(
-              Icons.arrow_downward,
-              color: Colors.grey.shade600,
-              size: AppUIConstants.evolutionIndicatorIconSize,
+            child: Center(
+              child: Icon(
+                Icons.arrow_downward,
+                color: Colors.grey.shade600,
+                size: AppUIConstants.evolutionIndicatorIconSize,
+              ),
             ),
           ),
         );
@@ -838,7 +873,7 @@ class _PokemonDetailsScreenState extends State<_PokemonDetailsScreen>
             : _defaultLargePadding,
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: evolutionContent.isNotEmpty
             ? evolutionContent
             : [
@@ -853,6 +888,7 @@ class _PokemonDetailsScreenState extends State<_PokemonDetailsScreen>
     );
   }
 
+  /// Builds the content for the 'Moves' tab.
   Widget _buildMovesTab(
     BuildContext context,
     PokemonDetail pokemon,

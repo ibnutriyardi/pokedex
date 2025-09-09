@@ -8,10 +8,6 @@ import 'package:pokedex/model/pokemon_list.dart';
 import 'package:pokedex/repository/pokemon_repository.dart';
 import 'package:pokedex/viewmodel/pokemon_list_viewmodel.dart';
 
-// Import the custom exceptions (assuming they are in pokemon_repository.dart)
-// If they are in a separate file, adjust the import path.
-// For this example, I'll assume they are accessible via the repository import.
-
 @GenerateMocks([PokemonRepository])
 import 'pokemon_list_viewmodel_test.mocks.dart';
 
@@ -19,7 +15,6 @@ void main() {
   late PokemonListViewModel viewModel;
   late MockPokemonRepository mockRepository;
 
-  // Helper to create a dummy URI for exceptions
   final Uri dummyUri = Uri.parse('http://dummy.api/call');
 
   Pokemon createDummyPokemon({required int id, required String name, List<String>? types}) {
@@ -68,7 +63,7 @@ void main() {
           }
         });
 
-        await tester.pump(); // Start microtask
+        await tester.pump(); 
         try {
           await loadingCompleter.future.timeout(const Duration(seconds: 2));
         } catch (e) {
@@ -107,7 +102,7 @@ void main() {
           }
         });
 
-        await tester.pump(); // Start microtask
+        await tester.pump(); 
         try {
           await loadingCompleter.future.timeout(const Duration(seconds: 2));
         } catch (e) {
@@ -150,7 +145,7 @@ void main() {
           }
         });
 
-        await tester.pump(); // Constructor microtask
+        await tester.pump(); 
         try {
           await currentCompleter.future.timeout(const Duration(seconds: 2));
         } catch (e) {
@@ -160,7 +155,7 @@ void main() {
         expect(recordedLoadingStates, [true, false], reason: "Constructor load: isLoading true, then false");
         
         recordedLoadingStates.clear();
-        currentCompleter = Completer<void>(); // Reset for explicit fetch
+        currentCompleter = Completer<void>(); 
 
         final newList = createDummyPokemonList(next: 'next_page', results: [
           createDummyPokemon(id: 3, name: 'charmander')
@@ -172,8 +167,8 @@ void main() {
           return newList;
         });
 
-        await viewModel.fetchInitialPokemons(); // Explicit call
-        await tester.pump(); // Start explicit fetch
+        await viewModel.fetchInitialPokemons(); 
+        await tester.pump(); 
         try {
           await currentCompleter.future.timeout(const Duration(seconds: 2));
         } catch (e) {
@@ -201,14 +196,12 @@ void main() {
         when(mockRepository.fetchPokemons(limit: 20, nextUrl: null))
             .thenAnswer((_) async {
           await Future.delayed(const Duration(milliseconds: 1));
-          // First call for constructor is success
           return createDummyPokemonList(results: [], next: null);
         });
 
         viewModel = PokemonListViewModel(repository: mockRepository);
         viewModel.addListener(() {
           recordedLoadingStates.add(viewModel.isLoading);
-          // For constructor, expect 2 states. For explicit fetch, also 2 states.
           if ((recordedLoadingStates.length == 2 || recordedLoadingStates.length == 4) && !currentCompleter.isCompleted) {
             currentCompleter.complete();
           }
@@ -223,10 +216,9 @@ void main() {
         await tester.pumpAndSettle();
         expect(recordedLoadingStates.take(2).toList(), [true, false], reason: "Constructor load for failure test");
         
-        recordedLoadingStates.clear(); // Clear for the explicit fetch part
+        recordedLoadingStates.clear(); 
         currentCompleter = Completer<void>();
 
-        // Mocking the second call (explicit fetchInitialPokemons) to throw an error
         when(mockRepository.fetchPokemons(limit: 20, nextUrl: null))
             .thenAnswer((_) async {
           await Future.delayed(const Duration(milliseconds: 1));
@@ -245,7 +237,7 @@ void main() {
         expect(recordedLoadingStates, [true, false], reason: "Explicit fetch failure: loading true, then false");
         expect(viewModel.isLoading, false);
         expect(viewModel.error, testException.toString());
-        expect(viewModel.pokemons.isEmpty, true); // Pokemon list should be empty due to reset in fetchInitialPokemons
+        expect(viewModel.pokemons.isEmpty, true); 
         verify(mockRepository.fetchPokemons(limit: 20, nextUrl: null)).called(2);
       });
     });
@@ -498,38 +490,6 @@ void main() {
         expect(localViewModel.formatPokemonId(12), "#012");
         expect(localViewModel.formatPokemonId(123), "#123");
         expect(localViewModel.formatPokemonId(1234), "#1234");
-      });
-    });
-
-    testWidgets('getPokemonTypeColor returns correct color', (WidgetTester tester) async {
-      await tester.runAsync(() async {
-        final localMockRepo = MockPokemonRepository();
-        final Completer<void> completer = Completer<void>();
-        List<bool> loadingStates = [];
-
-        when(localMockRepo.fetchPokemons(limit: 20, nextUrl: null))
-            .thenAnswer((_) async {
-          await Future.delayed(const Duration(milliseconds: 1));
-          return createDummyPokemonList(results: [], next: null);
-        });
-        final localViewModel = PokemonListViewModel(repository: localMockRepo);
-         localViewModel.addListener(() { 
-          loadingStates.add(localViewModel.isLoading);
-          if(loadingStates.length == 2 && !completer.isCompleted) completer.complete();
-        });
-
-        await tester.pump();
-        try { await completer.future.timeout(const Duration(seconds:1)); } catch(e){ debugPrint("Get color test VM load timeout"); }
-        await tester.pumpAndSettle();
-
-        expect(localViewModel.getPokemonTypeColor('grass'), const Color(0xFF78C850));
-        expect(localViewModel.getPokemonTypeColor('fire'), const Color(0xFFF08030));
-        // ... (rest of color tests are fine)
-        expect(localViewModel.getPokemonTypeColor('steel'), const Color(0xFFB8B8D0));
-        expect(localViewModel.getPokemonTypeColor('GRASS'), const Color(0xFF78C850));
-        expect(localViewModel.getPokemonTypeColor('UnknownType'), Colors.grey.shade400);
-        expect(localViewModel.getPokemonTypeColor(null), Colors.grey.shade400);
-        expect(localViewModel.getPokemonTypeColor(''), Colors.grey.shade400);
       });
     });
   });
