@@ -1,4 +1,4 @@
-import '../utils/string_utils.dart';
+import 'package:pokedex/utils/string_utils.dart';
 import './pokemon_stats.dart';
 
 /// Represents the detailed information for a specific Pokemon.
@@ -88,20 +88,6 @@ class PokemonDetail {
   /// This factory parses the [json] data from an API response.
   /// The [description] and [evolutionChainUrl] are passed in separately as they
   /// are often fetched from different API endpoints or sources.
-  ///
-  /// Populates fields such as:
-  /// - `id`, `name` directly from [json]. `name` defaults to an empty string if null.
-  /// - `imageUrl` from `json['sprites']?['other']?['official-artwork']?['front_default']`,
-  ///   falling back to `json['sprites']?['front_default']`, then to an empty string.
-  /// - `types` by mapping over `json['types']`. Type names default to empty strings if null.
-  /// - `height` and `weight` are cast from int to double. (Assumed non-null from API).
-  /// - `abilities` are mapped from `json['abilities']` and formatted using `formatHyphenatedName`. Ability names default to empty strings if null.
-  /// - `stats` are mapped from `json['stats']` by creating [PokemonStats] objects.
-  /// - `baseExperience` from `json['base_experience']`, defaulting to 0 if null.
-  /// - `moves` are mapped from `json['moves']` (defaulting to an empty list if null)
-  ///   by creating [PokemonMove] objects.
-  ///
-  /// Throws [TypeError] or similar if required JSON fields (like `id`, `height`, `weight`) are missing or of incorrect type.
   factory PokemonDetail.fromJson(
     Map<String, dynamic> json, {
     required String description,
@@ -121,7 +107,7 @@ class PokemonDetail {
       weight: (json['weight'] as num? ?? 0).toDouble(),
       abilities: (json['abilities'] as List? ?? [])
           .map((abilityInfo) => abilityInfo['ability']?['name'] as String? ?? '')
-          .map((name) => formatHyphenatedName(name))
+          .map((name) => formatHyphenatedName(name)) // Reverted to non-prefixed
           .toList(),
       stats: (json['stats'] as List? ?? []) 
           .map((statInfo) => PokemonStats.fromJson(statInfo as Map<String, dynamic>))
@@ -144,7 +130,7 @@ class PokemonMove {
   /// Returns the [name] of the move, formatted for display
   /// (e.g., "thunder-shock" becomes "Thunder Shock").
   String get formattedName {
-    return formatHyphenatedName(name);
+    return formatHyphenatedName(name); // Reverted to non-prefixed
   }
 
   /// Creates a [PokemonMove] instance.
