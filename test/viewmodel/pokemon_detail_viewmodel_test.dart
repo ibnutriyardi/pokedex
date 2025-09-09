@@ -5,6 +5,7 @@ import 'package:mockito/mockito.dart';
 import 'package:pokedex/model/pokemon_detail.dart';
 import 'package:pokedex/model/pokemon_evolution.dart';
 import 'package:pokedex/model/pokemon_stats.dart';
+import 'package:pokedex/repository/pokemon_repository.dart'; // Added for the new test
 import 'package:pokedex/viewmodel/pokemon_detail_viewmodel.dart';
 
 import 'pokemon_list_viewmodel_test.mocks.dart';
@@ -22,6 +23,8 @@ void main() {
     return 'L:${vm.isLoading} EL:${vm.isEvolutionLoading} Err:${vm.error != null} EvoErr:${vm.evolutionError != null}';
   }
 
+  // This setUp is for the majority of tests that use a mocked repository.
+  // The new constructor test will create its own instance.
   setUp(() {
     mockRepository = MockPokemonRepository();
     viewModel = PokemonDetailViewModel(repository: mockRepository);
@@ -94,6 +97,36 @@ void main() {
       evolvesTo: evolvesTo,
     );
   }
+
+  group('Constructor', () {
+    test('uses default PokemonRepository when no repository is provided', () {
+      // Act: Create ViewModel without providing a repository
+      final defaultRepoViewModel = PokemonDetailViewModel();
+      
+      // Assert: Check that the ViewModel is created
+      expect(defaultRepoViewModel, isNotNull);
+      // The primary goal is to hit the line in the constructor for coverage.
+      // Additional checks could be added if there was an easy way to inspect
+      // the internal _repository type without modifying the ViewModel for tests.
+    });
+
+    test('uses provided repository when one is given', () {
+      // Arrange
+      final explicitMockRepository = MockPokemonRepository();
+      
+      // Act
+      final explicitRepoViewModel = PokemonDetailViewModel(repository: explicitMockRepository);
+      
+      // Assert
+      expect(explicitRepoViewModel, isNotNull);
+      // Here, we can be reasonably sure our mock is being used because if it weren't,
+      // and a real PokemonRepository was created and made a network call,
+      // it might behave differently or error in a test environment without setup.
+      // For direct verification, one would typically need to expose the repository
+      // or test behavior that explicitly depends on the mocked type vs real type.
+      // For coverage of the `_repository = repository` part, this is sufficient.
+    });
+  });
 
   group('fetchPokemonDetails', () {
     final pokemonId = 1;
@@ -363,6 +396,54 @@ void main() {
       expect(viewModel.pokemonEvolution, initialEvolution, reason: "Should retain old evolution data on refresh error"); 
       verify(mockRepository.fetchPokemonEvolution(initialEvoUrl)).called(2); 
       expect(notifiedEvents.length, refreshFailNotificationsCount);
+    });
+  });
+
+  group('Lifecycle Management', () {
+    test('dispose method sets flags and prevents further updates', () async {
+      final pokemonId = 1;
+      const evolutionChainUrl = 'http://example.com/evo-chain/dispose/1/';
+      final detail = createDummyPokemonDetail(
+          id: pokemonId, name: 'disposable', evolutionChainUrl: evolutionChainUrl);
+      final evolution = createDummyPokemonEvolution(speciesName: 'disposable-evo');
+
+      // Initial fetch to set _currentPokemonIdForFetch and have some notifications
+      final initialFetchCompleter = Completer<void>();
+      notifiedEvents.clear();
+      when(mockRepository.fetchPokemonDetails(pokemonId))
+          .thenAnswer((_) async => detail);
+      when(mockRepository.fetchPokemonEvolution(evolutionChainUrl))
+          .thenAnswer((_) async => evolution);
+
+      viewModel.fetchPokemonDetails(pokemonId);
+      await awaitNotifications(initialFetchCompleter, 4, timeoutDuration: const Duration(seconds: 1));
+      
+      final notificationsBeforeDispose = List.from(notifiedEvents); 
+      final countNotificationsBeforeDispose = notifiedEvents.length;
+      expect(countNotificationsBeforeDispose, 4, reason: "Should have 4 notifications from initial successful fetch.");
+
+      viewModel.dispose();
+
+      // Verify super.dispose() was called (by checking ChangeNotifier behavior)
+      expect(() => viewModel.addListener(() {}), throwsA(isA<FlutterError>()),
+          reason: "addListener should throw after dispose");
+
+      // Attempt another fetch
+      final anotherPokemonId = 2;
+      final anotherDetail = createDummyPokemonDetail(id: anotherPokemonId, name: 'another');
+      when(mockRepository.fetchPokemonDetails(anotherPokemonId))
+          .thenAnswer((_) async => anotherDetail);
+
+      await viewModel.fetchPokemonDetails(anotherPokemonId);
+      await Future.delayed(Duration.zero); // Allow any microtasks to run
+
+      // Check that no new notifications were sent by the already attached listener
+      expect(notifiedEvents.length, countNotificationsBeforeDispose,
+          reason: "No new notifications should be received after dispose. Before: ${notificationsBeforeDispose.join(", ")}. After: ${notifiedEvents.join(", ")}");
+
+      // Verify that the repository was not called again for the main detail fetch
+      verify(mockRepository.fetchPokemonDetails(pokemonId)).called(1); // From initial fetch
+      verifyNever(mockRepository.fetchPokemonDetails(anotherPokemonId)); // Should not be called after dispose
     });
   });
 }

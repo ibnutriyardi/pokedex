@@ -77,6 +77,12 @@ void main() {
         expect(localViewModel.pokemons.length, 1, reason: "Should have one Pokemon after initial fetch");
         expect(localViewModel.pokemons.first.name, 'pikachu', reason: "Pokemon name mismatch");
         expect(localViewModel.hasMore, true, reason: "hasMore should be true as 'next' was provided in mock");
+        
+        expect(localViewModel.pokemonList, isNotNull, reason: "pokemonList getter should return a non-null object after successful fetch.");
+        expect(localViewModel.pokemonList, equals(initialList), reason: "pokemonList getter should return the exact PokemonList object that was fetched.");
+        expect(localViewModel.pokemonList?.results.first.name, 'pikachu', reason: "Name of first pokemon in list from pokemonList getter should match.");
+        expect(localViewModel.pokemonList?.next, 'some_next_url', reason: "The 'next' URL from pokemonList getter should match the mock.");
+
         verify(localMockRepository.fetchPokemons(limit: 20, nextUrl: null)).called(1);
       });
     });
@@ -117,7 +123,35 @@ void main() {
         expect(localViewModel.error, isNotNull);
         expect(localViewModel.error, testException.toString(), reason: "Error message should match NetworkException.toString()");
         expect(localViewModel.pokemons.isEmpty, true);
+        expect(localViewModel.pokemonList, isNull, reason: "pokemonList getter should be null after a fetch error.");
         verify(localMockRepository.fetchPokemons(limit: 20, nextUrl: null)).called(1);
+      });
+    });
+
+    testWidgets('constructor uses default PokemonRepository when none is provided', (WidgetTester tester) async {
+      await tester.runAsync(() async {
+        late PokemonListViewModel localViewModelUsingDefaultRepo;
+        final Completer<void> loadingCompleter = Completer<void>();
+        int listenerCallCount = 0;
+
+        localViewModelUsingDefaultRepo = PokemonListViewModel(); 
+
+        localViewModelUsingDefaultRepo.addListener(() {
+          listenerCallCount++;
+          if (!localViewModelUsingDefaultRepo.isLoading && listenerCallCount >= 2 && !loadingCompleter.isCompleted) {
+            loadingCompleter.complete();
+          }
+        });
+        
+        try {
+          await loadingCompleter.future.timeout(const Duration(seconds: 3));
+        } catch (e) {
+          debugPrint('Default repository constructor test loading completer timed out or errored. isLoading: ${localViewModelUsingDefaultRepo.isLoading}, Error: ${localViewModelUsingDefaultRepo.error}');
+        }
+        await tester.pumpAndSettle(const Duration(seconds: 3));
+
+        expect(localViewModelUsingDefaultRepo.isLoading, false, 
+          reason: "isLoading should eventually be false after constructor's initial fetch attempt with default repository. Actual error: ${localViewModelUsingDefaultRepo.error}");
       });
     });
   });
@@ -130,11 +164,14 @@ void main() {
         mockRepository = MockPokemonRepository();
         final List<bool> recordedLoadingStates = [];
         Completer<void> currentCompleter = Completer<void>();
+        PokemonList? firstFetchedList;
+        PokemonList? secondFetchedList;
 
         when(mockRepository.fetchPokemons(limit: 20, nextUrl: null))
             .thenAnswer((_) async {
           await Future.delayed(const Duration(milliseconds: 1));
-          return createDummyPokemonList(results: [], next: null);
+          firstFetchedList = createDummyPokemonList(results: [], next: null);
+          return firstFetchedList!;
         });
 
         viewModel = PokemonListViewModel(repository: mockRepository);
@@ -153,18 +190,19 @@ void main() {
         }
         await tester.pumpAndSettle();
         expect(recordedLoadingStates, [true, false], reason: "Constructor load: isLoading true, then false");
+        expect(viewModel.pokemonList, equals(firstFetchedList), reason: "pokemonList should be the first fetched list after constructor.");
         
         recordedLoadingStates.clear();
         currentCompleter = Completer<void>(); 
 
-        final newList = createDummyPokemonList(next: 'next_page', results: [
+        secondFetchedList = createDummyPokemonList(next: 'next_page', results: [
           createDummyPokemon(id: 3, name: 'charmander')
         ]);
 
         when(mockRepository.fetchPokemons(limit: 20, nextUrl: null))
             .thenAnswer((_) async {
           await Future.delayed(const Duration(milliseconds: 1));
-          return newList;
+          return secondFetchedList!;
         });
 
         await viewModel.fetchInitialPokemons(); 
@@ -182,6 +220,7 @@ void main() {
         expect(viewModel.pokemons.length, 1);
         expect(viewModel.pokemons.first.name, 'charmander');
         expect(viewModel.hasMore, true);
+        expect(viewModel.pokemonList, equals(secondFetchedList), reason: "pokemonList should be the second fetched list after explicit call.");
         verify(mockRepository.fetchPokemons(limit: 20, nextUrl: null)).called(2);
       });
     });
@@ -192,11 +231,13 @@ void main() {
         final List<bool> recordedLoadingStates = [];
         Completer<void> currentCompleter = Completer<void>();
         final testException = DataParsingException("Failed to parse data");
+        PokemonList? firstFetchedListOnErrorCase;
 
         when(mockRepository.fetchPokemons(limit: 20, nextUrl: null))
             .thenAnswer((_) async {
           await Future.delayed(const Duration(milliseconds: 1));
-          return createDummyPokemonList(results: [], next: null);
+          firstFetchedListOnErrorCase = createDummyPokemonList(results: [], next: null);
+          return firstFetchedListOnErrorCase!;
         });
 
         viewModel = PokemonListViewModel(repository: mockRepository);
@@ -215,7 +256,8 @@ void main() {
         }
         await tester.pumpAndSettle();
         expect(recordedLoadingStates.take(2).toList(), [true, false], reason: "Constructor load for failure test");
-        
+        expect(viewModel.pokemonList, equals(firstFetchedListOnErrorCase), reason: "pokemonList should be the initial list before explicit fetch failure.");
+
         recordedLoadingStates.clear(); 
         currentCompleter = Completer<void>();
 
@@ -238,25 +280,28 @@ void main() {
         expect(viewModel.isLoading, false);
         expect(viewModel.error, testException.toString());
         expect(viewModel.pokemons.isEmpty, true); 
+        expect(viewModel.pokemonList, equals(firstFetchedListOnErrorCase), reason: "pokemonList should still hold the list from the successful constructor fetch, even if explicit re-fetch fails.");
         verify(mockRepository.fetchPokemons(limit: 20, nextUrl: null)).called(2);
       });
     });
   });
 
   group('fetchMorePokemons', () {
-    testWidgets('success and appends data', (WidgetTester tester) async {
+    testWidgets('success and appends data, updates pokemonList', (WidgetTester tester) async {
       await tester.runAsync(() async {
         mockRepository = MockPokemonRepository();
         final List<bool> recordedLoadingStates = [];
         Completer<void> currentCompleter = Completer<void>();
+        PokemonList? initialListForFetchMore;
+        PokemonList? morePokemonDataForFetchMore;
 
-        final initialListFromConstructor = createDummyPokemonList(
+        initialListForFetchMore = createDummyPokemonList(
             results: [createDummyPokemon(id: 1, name: 'pidgey')],
             next: 'http://initial.next.page/api?page=2');
         when(mockRepository.fetchPokemons(limit: 20, nextUrl: null))
             .thenAnswer((_) async {
           await Future.delayed(const Duration(milliseconds: 1));
-          return initialListFromConstructor;
+          return initialListForFetchMore!;
         });
 
         viewModel = PokemonListViewModel(repository: mockRepository);
@@ -273,11 +318,12 @@ void main() {
         } catch (e) { debugPrint('fetchMore success constructor load completer timeout. States: $recordedLoadingStates'); }
         await tester.pumpAndSettle();
         expect(recordedLoadingStates, [true, false], reason: "fetchMore success: Constructor load");
-        
+        expect(viewModel.pokemonList, equals(initialListForFetchMore), reason: "pokemonList after constructor load in fetchMore test");
+
         recordedLoadingStates.clear();
         currentCompleter = Completer<void>();
 
-        final morePokemonData = createDummyPokemonList(
+        morePokemonDataForFetchMore = createDummyPokemonList(
             results: [createDummyPokemon(id: 2, name: 'rattata')],
             next: 'http://another.next.page/api?page=3');
         final expectedNextUrl = 'http://initial.next.page/api?page=2';
@@ -285,7 +331,7 @@ void main() {
         when(mockRepository.fetchPokemons(nextUrl: expectedNextUrl))
             .thenAnswer((_) async {
           await Future.delayed(const Duration(milliseconds: 1));
-          return morePokemonData;
+          return morePokemonDataForFetchMore!;
         });
 
         await viewModel.fetchMorePokemons();
@@ -302,24 +348,26 @@ void main() {
         expect(viewModel.pokemons[0].name, 'pidgey');
         expect(viewModel.pokemons[1].name, 'rattata');
         expect(viewModel.hasMore, true);
+        expect(viewModel.pokemonList, equals(morePokemonDataForFetchMore), reason: "pokemonList should be updated after successful fetchMorePokemons.");
         verify(mockRepository.fetchPokemons(nextUrl: expectedNextUrl)).called(1);
       });
     });
 
-    testWidgets('failure during fetch more with PokemonNotFoundException', (WidgetTester tester) async {
+    testWidgets('failure during fetch more, pokemonList remains unchanged', (WidgetTester tester) async {
       await tester.runAsync(() async {
         mockRepository = MockPokemonRepository();
         List<bool> recordedLoadingStates = [];
         Completer<void> currentCompleter = Completer<void>();
         final testException = PokemonNotFoundException("More Pokemon not found", uri: dummyUri);
+        PokemonList? initialListBeforeErrorInFetchMore;
 
-        final initialListFromConstructor = createDummyPokemonList(
+        initialListBeforeErrorInFetchMore = createDummyPokemonList(
             results: [createDummyPokemon(id: 1, name: 'pidgey')],
             next: 'http://initial.next.page/api?page=2');
         when(mockRepository.fetchPokemons(limit: 20, nextUrl: null))
             .thenAnswer((_) async {
           await Future.delayed(const Duration(milliseconds: 1));
-          return initialListFromConstructor;
+          return initialListBeforeErrorInFetchMore!;
         });
 
         viewModel = PokemonListViewModel(repository: mockRepository);
@@ -336,7 +384,9 @@ void main() {
         } catch (e) { debugPrint('fetchMore failure constructor load completer timeout. States: $recordedLoadingStates'); }
         await tester.pumpAndSettle();
         expect(recordedLoadingStates, [true, false], reason: "fetchMore failure: Constructor load");
-        
+        final pokemonListBeforeFailedFetchMore = viewModel.pokemonList;
+        expect(pokemonListBeforeFailedFetchMore, equals(initialListBeforeErrorInFetchMore));
+
         recordedLoadingStates.clear();
         currentCompleter = Completer<void>();
 
@@ -360,6 +410,7 @@ void main() {
         expect(viewModel.error, testException.toString());
         expect(viewModel.pokemons.length, pokemonsBeforeFetchMore.length, reason: "Pokemon list should not change on fetchMore error");
         expect(viewModel.pokemons, equals(pokemonsBeforeFetchMore), reason: "Pokemon list content should be identical after fetchMore error");
+        expect(viewModel.pokemonList, equals(pokemonListBeforeFailedFetchMore), reason: "pokemonList should NOT change if fetchMorePokemons fails.");
         verify(mockRepository.fetchPokemons(nextUrl: expectedNextUrl)).called(1);
       });
     });
@@ -385,7 +436,6 @@ void main() {
         viewModel.addListener(() {
           recordedLoadingStates.add(viewModel.isLoading);
           if (recordedLoadingStates.length % 2 == 0 && !currentCompleter.isCompleted) {
-             // Complete after every pair of loading state changes (true, then false)
             currentCompleter.complete();
           }
         });
@@ -455,6 +505,7 @@ void main() {
         recordedLoadingStates.clear();
 
         expect(localViewModel.hasMore, false, reason: "hasMore should be false for this test setup");
+        expect(localViewModel.pokemonList, isNotNull, reason: "pokemonList should still be accessible even if hasMore is false");
 
         await localViewModel.fetchMorePokemons();
         await tester.pumpAndSettle(); 
@@ -490,6 +541,165 @@ void main() {
         expect(localViewModel.formatPokemonId(12), "#012");
         expect(localViewModel.formatPokemonId(123), "#123");
         expect(localViewModel.formatPokemonId(1234), "#1234");
+      });
+    });
+
+    testWidgets('pokemons getter returns the current list of pokemons', (WidgetTester tester) async {
+      await tester.runAsync(() async {
+        final mockRepo1 = MockPokemonRepository();
+        when(mockRepo1.fetchPokemons(limit: 20, nextUrl: null))
+            .thenAnswer((_) => Future.value(createDummyPokemonList(results: [], next: null)));
+
+        final viewModel1 = PokemonListViewModel(repository: mockRepo1);
+        final Completer<void> loadCompleter1 = Completer();
+        viewModel1.addListener(() {
+          if (!viewModel1.isLoading && !loadCompleter1.isCompleted) {
+            loadCompleter1.complete();
+          }
+        });
+
+        await tester.pump(); 
+        await tester.pumpAndSettle(); 
+
+        try {
+          await loadCompleter1.future.timeout(const Duration(seconds: 1), onTimeout: () {
+             debugPrint("ViewModel1 loading completer timed out. isLoading: ${viewModel1.isLoading}, error: ${viewModel1.error}, pokemons: ${viewModel1.pokemons.length}");
+          });
+        } catch (e) {
+          debugPrint("ViewModel1 loading completer threw: $e. isLoading: ${viewModel1.isLoading}, error: ${viewModel1.error}, pokemons: ${viewModel1.pokemons.length}");
+        }
+        await tester.pump();
+        
+        final List<Pokemon> retrievedPokemons1 = viewModel1.pokemons;
+        expect(retrievedPokemons1, isA<List<Pokemon>>(), reason: "Getter (Scenario 1) should return a List<Pokemon>.");
+        expect(retrievedPokemons1, isEmpty, reason: "Pokemons getter (Scenario 1) should return empty list. Error: ${viewModel1.error}, isLoading: ${viewModel1.isLoading}");
+        verify(mockRepo1.fetchPokemons(limit: 20, nextUrl: null)).called(1);
+
+        final mockRepo2 = MockPokemonRepository();
+        final testPokemon = createDummyPokemon(id: 99, name: 'Gettermon');
+        final expectedPokemonList = createDummyPokemonList(results: [testPokemon], next: 'next/url');
+
+        when(mockRepo2.fetchPokemons(limit: 20, nextUrl: null))
+            .thenAnswer((_) => Future.value(expectedPokemonList));
+
+        final viewModel2 = PokemonListViewModel(repository: mockRepo2);
+        final Completer<void> loadCompleter2 = Completer();
+        viewModel2.addListener(() {
+          if (!viewModel2.isLoading && !loadCompleter2.isCompleted) {
+            loadCompleter2.complete();
+          }
+        });
+
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        try {
+          await loadCompleter2.future.timeout(const Duration(seconds: 1), onTimeout: () {
+            debugPrint("ViewModel2 loading completer timed out. isLoading: ${viewModel2.isLoading}, error: ${viewModel2.error}, pokemons: ${viewModel2.pokemons.length}");
+          });
+        } catch (e) {
+          debugPrint("ViewModel2 loading completer threw: $e. isLoading: ${viewModel2.isLoading}, error: ${viewModel2.error}, pokemons: ${viewModel2.pokemons.length}");
+        }
+        await tester.pump();
+        
+        final List<Pokemon> retrievedPokemons2 = viewModel2.pokemons;
+        expect(retrievedPokemons2, isA<List<Pokemon>>(), reason: "Getter (Scenario 2) should return a List<Pokemon>.");
+        expect(retrievedPokemons2.length, 1, reason: "Pokemons getter (Scenario 2) should return populated list. Actual error: ${viewModel2.error}, isLoading: ${viewModel2.isLoading}");
+        if (retrievedPokemons2.isNotEmpty) {
+          expect(retrievedPokemons2.first.name, 'Gettermon');
+        } else {
+          fail('viewModel2.pokemons was empty (Scenario 2). Error: ${viewModel2.error}, isLoading: ${viewModel2.isLoading}');
+        }
+        verify(mockRepo2.fetchPokemons(limit: 20, nextUrl: null)).called(1);
+      });
+    });
+
+    testWidgets('pokemons getter directly accessed after minimal setup', (WidgetTester tester) async {
+      await tester.runAsync(() async {
+        final mockRepo = MockPokemonRepository();
+        when(mockRepo.fetchPokemons(limit: 20, nextUrl: null))
+            .thenAnswer((_) async => createDummyPokemonList(results: [], next: null));
+
+        final tempViewModel = PokemonListViewModel(repository: mockRepo);
+        
+        await tester.pumpAndSettle(); 
+
+        final List<Pokemon> retrievedPokemons = tempViewModel.pokemons;
+        expect(retrievedPokemons, isA<List<Pokemon>>(), reason: "Getter should return a List<Pokemon>.");
+        expect(retrievedPokemons, isEmpty, reason: "Getter should reflect the initially fetched empty list.");
+        
+        verify(mockRepo.fetchPokemons(limit: 20, nextUrl: null)).called(1);
+      });
+    });
+  });
+
+  group('Lifecycle Management', () {
+    testWidgets('dispose method sets _isDisposed and prevents further notifications and actions', (WidgetTester tester) async {
+      await tester.runAsync(() async {
+        final mockRepo = MockPokemonRepository();
+        final initialDummyList = createDummyPokemonList(results: [createDummyPokemon(id:1, name:'disposable_pokemon')], next: 'next_url_for_dispose_test');
+        
+        when(mockRepo.fetchPokemons(limit: 20, nextUrl: null))
+            .thenAnswer((_) async => initialDummyList);
+        
+        final vm = PokemonListViewModel(repository: mockRepo);
+        
+        int totalNotifications = 0;
+        final Completer<void> initialLoadCompleter = Completer();
+        vm.addListener(() {
+          totalNotifications++;
+          // For initial load, we expect 2 notifications (isLoading true, then false)
+          if (!vm.isLoading && totalNotifications >= 2 && !initialLoadCompleter.isCompleted) { 
+            initialLoadCompleter.complete();
+          }
+        });
+
+        await tester.pump(); // Start initial fetch
+        try {
+          await initialLoadCompleter.future.timeout(const Duration(seconds: 2), 
+            onTimeout: () => debugPrint("Initial load for dispose test timed out. Notifications: $totalNotifications, isLoading: ${vm.isLoading}")
+          );
+        } catch(e) {
+          debugPrint("Initial load for dispose test threw: $e. Notifications: $totalNotifications, isLoading: ${vm.isLoading}");
+        }
+        await tester.pumpAndSettle(); // Settle initial fetch
+
+        expect(totalNotifications, greaterThanOrEqualTo(2), reason: "Listener should have been called at least twice for initial load.");
+        expect(vm.hasMore, true, reason: "Setup: hasMore should be true before dispose.");
+
+        final int notificationsBeforeDisposeAction = totalNotifications;
+
+        vm.dispose(); // Call dispose
+
+        // 1. Test _safeNotifyListeners guard during fetchInitialPokemons
+        final anotherDummyList = createDummyPokemonList(results: [createDummyPokemon(id:2, name:'after_dispose_pokemon')], next: 'another_url');
+        // Re-stub for the fetchInitialPokemons call after dispose
+        when(mockRepo.fetchPokemons(limit: 20, nextUrl: null)) 
+            .thenAnswer((_) async => anotherDummyList);
+            
+        await vm.fetchInitialPokemons(); 
+        await tester.pumpAndSettle();
+        
+        expect(totalNotifications, notificationsBeforeDisposeAction, 
+               reason: "_safeNotifyListeners should not have triggered further notifications for fetchInitialPokemons after dispose.");
+
+        // 2. Test fetchMorePokemons guard
+        final String? nextUrlForMore = initialDummyList.next; 
+        expect(nextUrlForMore, isNotNull, reason: "Test setup check: nextUrlForMore should not be null for this part of the test.");
+
+        if (nextUrlForMore != null) {
+            when(mockRepo.fetchPokemons(nextUrl: nextUrlForMore)) 
+                .thenAnswer((_) async => createDummyPokemonList(results: [createDummyPokemon(id:3, name:'more_after_dispose_pokemon')]));
+                
+            await vm.fetchMorePokemons(); 
+            await tester.pumpAndSettle();
+
+            verifyNever(mockRepo.fetchPokemons(nextUrl: nextUrlForMore));
+            expect(totalNotifications, notificationsBeforeDisposeAction, 
+               reason: "_safeNotifyListeners should not have triggered further notifications for fetchMorePokemons after dispose.");
+        } else {
+             fail("nextUrlForMore was null, preventing testing of fetchMorePokemons guard after dispose.");
+        }
       });
     });
   });

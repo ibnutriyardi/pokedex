@@ -151,18 +151,18 @@ class PokemonRepository {
 
       final List<Map<String, dynamic>> detailedPokemonJsonList = [];
       for (final item in resultsFromApi) {
-        if (item == null || item is! Map || item['url'] == null) {
+        if (item == null || item is! Map) { // MODIFIED: Removed item['url'] == null check here
           debugPrint(
-            "Warning: Item is null, not a Map, or item URL is null in fetchPokemons results. Item: $item",
+            "Warning: Item is null or not a Map in fetchPokemons results. Item: $item", // MODIFIED message
           );
           continue;
         }
         
         final String? itemName = item['name'] as String?;
-        final String? detailUrl = item['url'] as String?;
+        final String? detailUrl = item['url'] as String?; // detailUrl can now be null if item['url'] is null
 
-        if (detailUrl == null) {
-             debugPrint("Warning: detailUrl is null for item: $item");
+        if (detailUrl == null || detailUrl.isEmpty) { // MODIFIED: Handles null or empty string
+             debugPrint("Warning: detailUrl is null or empty for item: $item"); // MODIFIED message
              continue;
         }
 

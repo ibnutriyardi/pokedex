@@ -93,6 +93,8 @@ class PokemonDetailViewModel extends ChangeNotifier {
   /// - If an error occurs during the main detail fetch, sets [error] and clears related data.
   /// - Finally, sets [isLoading] to false if this fetch operation is still current.
   Future<void> fetchPokemonDetails(int pokemonId) async {
+    if (_isDisposed) return; // Added guard
+
     final int localFetchId = pokemonId;
     _currentPokemonIdForFetch = localFetchId;
 
@@ -107,6 +109,12 @@ class PokemonDetailViewModel extends ChangeNotifier {
     _safeNotifyListeners();
 
     try {
+      // Check dispose again before potentially long async operation
+      if (_isDisposed) {
+        _isLoading = false;
+        _safeNotifyListeners();
+        return;
+      }
       final fetchedDetailData = await _repository.fetchPokemonDetails(
         localFetchId,
       );
@@ -149,6 +157,7 @@ class PokemonDetailViewModel extends ChangeNotifier {
     String evolutionChainUrl,
     int originalPokemonId, 
   ) async {
+    // This existing guard is good, especially with the added guards in public methods.
     if (_currentPokemonIdForFetch != originalPokemonId || _isDisposed) return;
 
     _isEvolutionLoading = true;
@@ -156,6 +165,12 @@ class PokemonDetailViewModel extends ChangeNotifier {
     _safeNotifyListeners();
 
     try {
+      // Check dispose again before potentially long async operation
+      if (_isDisposed) {
+         _isEvolutionLoading = false;
+        _safeNotifyListeners();
+        return;
+      }
       final newPokemonEvolution = await _repository.fetchPokemonEvolution(
         evolutionChainUrl,
       );
@@ -188,8 +203,10 @@ class PokemonDetailViewModel extends ChangeNotifier {
   /// - Otherwise, it calls [_fetchPokemonEvolutionDataInternal] to perform the fetch,
   ///   ensuring the context of the fetch is tied to the current Pokémon's ID.
   Future<void> refreshPokemonEvolutionData() async {
+    if (_isDisposed) return; // Added guard
+
     if (_pokemonDetail == null) {
-      _evolutionError = "Pokemon details not loaded."; // Corrected
+      _evolutionError = "Pokemon details not loaded.";
       _isEvolutionLoading = false;
       _safeNotifyListeners();
       return;
@@ -199,13 +216,13 @@ class PokemonDetailViewModel extends ChangeNotifier {
     final int currentDetailId = _pokemonDetail!.id;
 
     if (evolutionUrl == null || evolutionUrl.isEmpty) {
-      _evolutionError = "No evolution data URL available to refresh."; // Corrected
+      _evolutionError = "No evolution data URL available to refresh.";
       _isEvolutionLoading = false;
       _safeNotifyListeners();
       return;
     }
 
-    _currentPokemonIdForFetch = currentDetailId;
+    _currentPokemonIdForFetch = currentDetailId; // Ensure this is set for _fetchPokemonEvolutionDataInternal context
     await _fetchPokemonEvolutionDataInternal(evolutionUrl, currentDetailId);
   }
 }
