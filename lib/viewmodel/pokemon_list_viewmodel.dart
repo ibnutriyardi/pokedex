@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../model/pokemon.dart';
 import '../model/pokemon_list.dart';
 import '../repository/pokemon_repository.dart';
-import '../utils/color_utils.dart'; // New import
+// New import
 
 /// {@template pokemon_list_viewmodel}
 /// ViewModel for managing the state and business logic of the Pokémon list screen.

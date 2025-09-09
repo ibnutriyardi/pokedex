@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../model/pokemon_detail.dart';
 import '../model/pokemon_evolution.dart';
 import '../repository/pokemon_repository.dart';
-import '../utils/color_utils.dart';
 
 /// {@template pokemon_detail_viewmodel}
 /// ViewModel for managing the state and business logic of the Pokémon details screen.

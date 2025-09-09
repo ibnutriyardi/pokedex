@@ -1,41 +1,38 @@
-import 'dart:async' as _i7;
+import 'dart:async' as i7;
 
-import 'package:mockito/mockito.dart' as _i1;
-import 'package:mockito/src/dummies.dart' as _i6;
-import 'package:pokedex/model/pokemon_detail.dart' as _i3;
-import 'package:pokedex/model/pokemon_evolution.dart' as _i4;
-import 'package:pokedex/model/pokemon_list.dart' as _i2;
-import 'package:pokedex/repository/pokemon_repository.dart' as _i5;
+import 'package:mockito/mockito.dart' as i1;
+import 'package:mockito/src/dummies.dart' as i6;
+import 'package:pokedex/model/pokemon_detail.dart' as i3;
+import 'package:pokedex/model/pokemon_evolution.dart' as i4;
+import 'package:pokedex/model/pokemon_list.dart' as i2;
+import 'package:pokedex/repository/pokemon_repository.dart' as i5;
 
-class _FakePokemonList_0 extends _i1.SmartFake implements _i2.PokemonList {
-  _FakePokemonList_0(Object parent, Invocation parentInvocation)
-    : super(parent, parentInvocation);
+class _FakePokemonList_0 extends i1.SmartFake implements i2.PokemonList {
+  _FakePokemonList_0(super.parent, super.parentInvocation);
 }
 
-class _FakePokemonDetail_1 extends _i1.SmartFake implements _i3.PokemonDetail {
-  _FakePokemonDetail_1(Object parent, Invocation parentInvocation)
-    : super(parent, parentInvocation);
+class _FakePokemonDetail_1 extends i1.SmartFake implements i3.PokemonDetail {
+  _FakePokemonDetail_1(super.parent, super.parentInvocation);
 }
 
-class _FakePokemonEvolution_2 extends _i1.SmartFake
-    implements _i4.PokemonEvolution {
-  _FakePokemonEvolution_2(Object parent, Invocation parentInvocation)
-    : super(parent, parentInvocation);
+class _FakePokemonEvolution_2 extends i1.SmartFake
+    implements i4.PokemonEvolution {
+  _FakePokemonEvolution_2(super.parent, super.parentInvocation);
 }
 
 /// A class which mocks [PokemonRepository].
 ///
 /// See the documentation for Mockito's code generation for more information.
-class MockPokemonRepository extends _i1.Mock implements _i5.PokemonRepository {
+class MockPokemonRepository extends i1.Mock implements i5.PokemonRepository {
   MockPokemonRepository() {
-    _i1.throwOnMissingStub(this);
+    i1.throwOnMissingStub(this);
   }
 
   @override
   String get baseUrl =>
       (super.noSuchMethod(
             Invocation.getter(#baseUrl),
-            returnValue: _i6.dummyValue<String>(
+            returnValue: i6.dummyValue<String>(
               this,
               Invocation.getter(#baseUrl),
             ),
@@ -43,7 +40,7 @@ class MockPokemonRepository extends _i1.Mock implements _i5.PokemonRepository {
           as String);
 
   @override
-  _i7.Future<_i2.PokemonList> fetchPokemons({
+  i7.Future<i2.PokemonList> fetchPokemons({
     int? limit = 10,
     String? nextUrl,
   }) =>
@@ -52,7 +49,7 @@ class MockPokemonRepository extends _i1.Mock implements _i5.PokemonRepository {
               #limit: limit,
               #nextUrl: nextUrl,
             }),
-            returnValue: _i7.Future<_i2.PokemonList>.value(
+            returnValue: i7.Future<i2.PokemonList>.value(
               _FakePokemonList_0(
                 this,
                 Invocation.method(#fetchPokemons, [], {
@@ -62,30 +59,30 @@ class MockPokemonRepository extends _i1.Mock implements _i5.PokemonRepository {
               ),
             ),
           )
-          as _i7.Future<_i2.PokemonList>);
+          as i7.Future<i2.PokemonList>);
 
   @override
-  _i7.Future<_i3.PokemonDetail> fetchPokemonDetails(int? pokemonId) =>
+  i7.Future<i3.PokemonDetail> fetchPokemonDetails(int? pokemonId) =>
       (super.noSuchMethod(
             Invocation.method(#fetchPokemonDetails, [pokemonId]),
-            returnValue: _i7.Future<_i3.PokemonDetail>.value(
+            returnValue: i7.Future<i3.PokemonDetail>.value(
               _FakePokemonDetail_1(
                 this,
                 Invocation.method(#fetchPokemonDetails, [pokemonId]),
               ),
             ),
           )
-          as _i7.Future<_i3.PokemonDetail>);
+          as i7.Future<i3.PokemonDetail>);
 
   @override
-  _i7.Future<_i4.PokemonEvolution> fetchPokemonEvolution(
+  i7.Future<i4.PokemonEvolution> fetchPokemonEvolution(
     String? evolutionChainUrlString,
   ) =>
       (super.noSuchMethod(
             Invocation.method(#fetchPokemonEvolution, [
               evolutionChainUrlString,
             ]),
-            returnValue: _i7.Future<_i4.PokemonEvolution>.value(
+            returnValue: i7.Future<i4.PokemonEvolution>.value(
               _FakePokemonEvolution_2(
                 this,
                 Invocation.method(#fetchPokemonEvolution, [
@@ -94,5 +91,5 @@ class MockPokemonRepository extends _i1.Mock implements _i5.PokemonRepository {
               ),
             ),
           )
-          as _i7.Future<_i4.PokemonEvolution>);
+          as i7.Future<i4.PokemonEvolution>);
 }

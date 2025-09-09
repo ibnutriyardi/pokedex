@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:pokedex/model/pokemon_list.dart';
 
-import '../model/pokemon.dart';
 import '../model/pokemon_detail.dart';
 import '../model/pokemon_evolution.dart';
 
@@ -48,8 +47,8 @@ class NetworkException implements Exception {
 /// {@endtemplate}
 class PokemonNotFoundException extends NetworkException {
   /// {@macro pokemon_not_found_exception}
-  PokemonNotFoundException(String message, {Uri? uri})
-      : super(message, statusCode: 404, uri: uri);
+  PokemonNotFoundException(super.message, {super.uri})
+      : super(statusCode: 404);
 
   @override
   String toString() {
@@ -152,7 +151,7 @@ class PokemonRepository {
 
       final List<Map<String, dynamic>> detailedPokemonJsonList = [];
       for (final item in resultsFromApi) {
-        if (item == null || !(item is Map) || item['url'] == null) {
+        if (item == null || item is! Map || item['url'] == null) {
           debugPrint(
             "Warning: Item is null, not a Map, or item URL is null in fetchPokemons results. Item: $item",
           );
